@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            color: #00ff00;
+            font-family: monospace;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* バイナリ背景 */
+        .binary-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.2;
+        }
+
+        .binary-column {
+            position: absolute;
+            color: #00ff00;
+            font-size: 14px;
+            line-height: 1;
+            animation: fall linear infinite;
+        }
+
+        /* ターミナルウィンドウ */
+        .terminal {
+            position: relative;
+            z-index: 1;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .terminal-header {
+            height: 32px;
+            background: rgba(0, 128, 0, 0.2);
+            border-bottom: 1px solid rgba(0, 255, 0, 0.3);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            justify-content: space-between;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .control-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .close { background: #ff5f56; }
+        .minimize { background: #ffbd2e; }
+        .maximize { background: #27c93f; }
+
+        .terminal-title {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(0, 255, 0, 0.7);
+        }
+
+        .terminal-content {
+            padding: 32px;
+            height: calc(100vh - 32px);
+            overflow-y: auto;
+        }
+
+        /* 404テキスト */
+        .error-code {
+            font-size: 120px;
+            font-weight: bold;
+            margin-bottom: 32px;
+            position: relative;
+            display: inline-block;
+        }
+
+        /* グリッチエフェクト */
+        .glitch-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            mix-blend-mode: screen;
+            animation: glitch-anim 4s infinite;
+        }
+
+        .scanline {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                to bottom,
+                transparent 0%,
+                rgba(0, 255, 0, 0.05) 50%,
+                transparent 100%
+            );
+            animation: scanline 6s linear infinite;
+        }
+
+        .noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyBAMAAADsEZWCAAAAGFBMVEUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgE1xQAAAABh0Uk5TzD7pPuw+7T7qPu4+6z7tPuc+7D7vPqfBPO4AAADbSURBVDjLrZRBEsMgCEV16Qk8Apm5/6m6kETB2GTsYjrTRV3wefyAUoq/JNJ3wqttWJ0l5ryfyO6YhTHGZqxnafd/8ZCmXeTgYn3HjIU+h1UbDIBbh0vJBMptapCZ1JzLli4VOiOVD0RKG9GJTIG3aM5PR0c7c94Xgh7P6Ii8WBxUyCKqaJYifhJ0vLPOyB/PALszQkWXASCXNcRK6vAYw0HU7517l2kO8rygskJFAVHJMZQXlUX01xYYiWoqKoVohYHFTVRwUZWLykD0BsPLDVFQRNUqKq+tDDeBf0FfWTpJ8m7zDPkAAAAASUVORK5CYII=');
+            opacity: 0.3;
+            animation: noise 0.2s infinite;
+        }
+
+        /* アニメーション */
+        @keyframes fall {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(100vh); }
+        }
+
+        @keyframes glitch-anim {
+            0% { transform: none; opacity: 0.8; }
+            7% { transform: translate(-2px, 3px); }
+            10% { transform: none; }
+            27% { transform: none; }
+            30% { transform: translate(2px, -3px); }
+            35% { transform: none; }
+            52% { transform: none; }
+            55% { transform: translate(-2px, 3px); }
+            50% { transform: none; }
+            72% { transform: none; }
+            75% { transform: translate(2px, -3px); }
+            80% { transform: none; }
+            100% { transform: none; }
+        }
+
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+
+        @keyframes noise {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(-1%, -1%); }
+            20% { transform: translate(1%, 1%); }
+            30% { transform: translate(-2%, -2%); }
+            40% { transform: translate(2%, 2%); }
+            50% { transform: translate(-1%, 1%); }
+            60% { transform: translate(1%, -1%); }
+            70% { transform: translate(2%, -2%); }
+            80% { transform: translate(-2%, 2%); }
+            90% { transform: translate(1%, -1%); }
+        }
+
+        .console-text {
+            font-family: monospace;
+            white-space: pre-line;
+            line-height: 1.5;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 16px;
+            background: #00ff00;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .back-button {
+            margin-top: 32px;
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            font-family: monospace;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .back-button:hover {
+            background: #00ff00;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="binary-bg" id="binary-bg"></div>
+        <div class="noise"></div>
+        <div class="scanline"></div>
+        
+        <div class="terminal">
+            <div class="terminal-header">
+                <div class="window-controls">
+                    <div class="control-btn close"></div>
+                    <div class="control-btn minimize"></div>
+                    <div class="control-btn maximize"></div>
+                </div>
+                <div class="terminal-title">SYSTEM_TERMINAL.exe</div>
+                <div class="user-info">root@system:~</div>
+            </div>
+            
+            <div class="terminal-content">
+                <div class="error-code">
+                    404
+                    <div class="glitch-layer">404</div>
+                    <div class="glitch-layer" style="animation-delay: -2s;">404</div>
+                </div>
+                
+                <div class="console-text" id="console-text"></div>
+                <div class="cursor"></div>
+                
+                <button class="back-button" onclick="window.history.back()">
+                    > RETURN_TO_PREVIOUS_PAGE
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // バイナリ背景の生成
+        function createBinaryBackground() {
+            const container = document.getElementById('binary-bg');
+            const columns = Math.floor(window.innerWidth / 14);
+            
+            for (let i = 0; i < columns; i++) {
+                const column = document.createElement('div');
+                column.className = 'binary-column';
+                column.style.left = `${i * 14}px`;
+                column.style.animationDuration = `${Math.random() * 2 + 2}s`;
+                column.style.animationDelay = `${Math.random() * 2}s`;
+                
+                const chars = Array(Math.ceil(window.innerHeight / 14))
+                    .fill(0)
+                    .map(() => Math.random() > 0.5 ? '1' : '0')
+                    .join('\n');
+                
+                column.textContent = chars;
+                container.appendChild(column);
+            }
+        }
+
+        // コンソールテキストのタイプライター効果
+        function typeConsoleText() {
+            const text = `
+> SYSTEM ERROR DETECTED
+> INITIALIZING DIAGNOSTIC SCAN...
+> ████████████░░░░░░░░ 60%
+> ACCESS_DENIED: PAGE NOT FOUND
+> ERROR_CODE: 0x00000404
+> LOCATION: ${window.location.href}
+> TIMESTAMP: ${new Date().toISOString()}
+> ATTEMPTING TO RECOVER DATA...
+> RECOVERY_FAILED
+> MEMORY_DUMP:
+  0x7FFD3B4A: 01 FF E0 45 89 BD 67 2A
+  0x7FFD3B52: 00 11 CD 34 79 AA 12 B4
+  0x7FFD3B5A: F5 8C 23 56 90 DE 45 C7
+> STACK_TRACE_COMPLETE
+> PLEASE CONTACT SYSTEM ADMINISTRATOR`;
+
+            const consoleElement = document.getElementById('console-text');
+            let index = 0;
+
+            function type() {
+                if (index < text.length) {
+                    consoleElement.textContent += text.charAt(index);
+                    index++;
+                    setTimeout(type, 30);
+                }
+            }
+
+            type();
+        }
+
+        // 初期化
+        window.addEventListener('load', () => {
+            createBinaryBackground();
+            typeConsoleText();
+        });
+
+        // ウィンドウリサイズ時にバイナリ背景を再生成
+        window.addEventListener('resize', () => {
+            const container = document.getElementById('binary-bg');
+            container.innerHTML = '';
+            createBinaryBackground();
+        });
+    </script>
+</body>
+</html>
