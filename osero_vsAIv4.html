@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>オセロゲーム（AI対戦）</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        class OthelloAI {
+            constructor() {
+                this.currentProgress = {
+                    depth: 0,
+                    totalMoves: 0,
+                    currentMove: 0,
+                    bestMoveFound: null,
+                    currentScore: 0
+                };
+
+                this.weights = [
+                    [120, -20, 15,  8,  8, 15, -20, 120],
+                    [-20, -60,  1,  1,  1,  1, -60, -20],
+                    [ 15,   1,  7,  2,  2,  7,   1,  15],
+                    [  8,   1,  2,  1,  1,  2,   1,   8],
+                    [  8,   1,  2,  1,  1,  2,   1,   8],
+                    [ 15,   1,  7,  2,  2,  7,   1,  15],
+                    [-20, -60,  1,  1,  1,  1, -60, -20],
+                    [120, -20, 15,  8,  8, 15, -20, 120]
+                ];
+
+                this.directions = [
+                    [-1, -1], [-1, 0], [-1, 1],
+                    [0, -1],           [0, 1],
+                    [1, -1],  [1, 0],  [1, 1]
+                ];
+            }
+
+            getBestMove(board, player) {
+                const moves = this.findPossibleMoves(board, player);
+                if (moves.length === 0) return null;
+                
+                let bestMove = moves[0];
+                let bestScore = -Infinity;
+                this.currentProgress.totalMoves = moves.length;
+
+                for (let i = 0; i < moves.length; i++) {
+                    this.currentProgress.currentMove = i + 1;
+                    const move = moves[i];
+                    const newBoard = this.makeMove(board, move[0], move[1], player);
+                    const score = this.minimax(newBoard, 3, false, player);
+                    
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = move;
+                        this.currentProgress.bestMoveFound = move;
+                        this.currentProgress.currentScore = score;
+                    }
+
+                    // 探索の深さを進捗に反映
+                    this.currentProgress.depth = 3;
+                }
+
+                return bestMove;
+            }
+
+            minimax(board, depth, isMaximizing, originalPlayer) {
+                if (depth === 0) {
+                    return this.evaluateBoard(board, originalPlayer);
+                }
+
+                const currentPlayer = isMaximizing ? originalPlayer : 
+                    (originalPlayer === 'black' ? 'white' : 'black');
+                const moves = this.findPossibleMoves(board, currentPlayer);
+
+                if (moves.length === 0) {
+                    // パスの場合、相手の手番で再評価
+                    const opponentMoves = this.findPossibleMoves(board, 
+                        currentPlayer === 'black' ? 'white' : 'black');
+                    if (opponentMoves.length === 0) {
+                        // 両者打てない場合は最終スコアを返す
+                        return this.evaluateBoard(board, originalPlayer);
+                    }
+                    return this.minimax(board, depth - 1, !isMaximizing, originalPlayer);
+                }
+
+                let bestScore = isMaximizing ? -Infinity : Infinity;
+                for (const move of moves) {
+                    const newBoard = this.makeMove(board, move[0], move[1], currentPlayer);
+                    const score = this.minimax(newBoard, depth - 1, !isMaximizing, originalPlayer);
+                    if (isMaximizing) {
+                        bestScore = Math.max(score, bestScore);
+                    } else {
+                        bestScore = Math.min(score, bestScore);
+                    }
+                }
+
+                return bestScore;
+            }
+
+            evaluateBoard(board, player) {
+                const opponent = player === 'black' ? 'white' : 'black';
+                let score = 0;
+
+                // 位置の評価
+                for (let i = 0; i < 8; i++) {
+                    for (let j = 0; j < 8; j++) {
+                        if (board[i][j] === player) {
+                            score += this.weights[i][j];
+                        } else if (board[i][j] === opponent) {
+                            score -= this.weights[i][j];
+                        }
+                    }
+                }
+
+                // 移動可能手数の評価
+                const playerMoves = this.findPossibleMoves(board, player).length;
+                const opponentMoves = this.findPossibleMoves(board, opponent).length;
+                score += (playerMoves - opponentMoves) * 10;
+
+                // 石の数の評価（終盤に近づくほど重要）
+                const [playerCount, opponentCount] = this.countPieces(board, player);
+                const emptyCount = 64 - playerCount - opponentCount;
+                if (emptyCount < 16) {  // 終盤
+                    score += (playerCount - opponentCount) * 50;
+                }
+
+                return score;
+            }
+
+            countPieces(board, player) {
+                const opponent = player === 'black' ? 'white' : 'black';
+                let playerCount = 0;
+                let opponentCount = 0;
+
+                for (let i = 0; i < 8; i++) {
+                    for (let j = 0; j < 8; j++) {
+                        if (board[i][j] === player) playerCount++;
+                        else if (board[i][j] === opponent) opponentCount++;
+                    }
+                }
+
+                return [playerCount, opponentCount];
+            }
+
+            findPossibleMoves(board, player) {
+                const moves = [];
+                for (let i = 0; i < 8; i++) {
+                    for (let j = 0; j < 8; j++) {
+                        if (this.isValidMove(board, i, j, player)) {
+                            moves.push([i, j]);
+                        }
+                    }
+                }
+                return moves;
+            }
+
+            isValidMove(board, row, col, player) {
+                if (board[row][col] !== null) return false;
+                
+                const opponent = player === 'black' ? 'white' : 'black';
+                
+                for (const [dx, dy] of this.directions) {
+                    let x = row + dx;
+                    let y = col + dy;
+                    let foundOpponent = false;
+                    
+                    while (x >= 0 && x < 8 && y >= 0 && y < 8) {
+                        if (board[x][y] === opponent) {
+                            foundOpponent = true;
+                        } else if (board[x][y] === player && foundOpponent) {
+                            return true;
+                        } else {
+                            break;
+                        }
+                        x += dx;
+                        y += dy;
+                    }
+                }
+                return false;
+            }
+
+            makeMove(board, row, col, player) {
+                const newBoard = board.map(row => [...row]);
+                newBoard[row][col] = player;
+                
+                const opponent = player === 'black' ? 'white' : 'black';
+                
+                for (const [dx, dy] of this.directions) {
+                    const piecesToFlip = [];
+                    let x = row + dx;
+                    let y = col + dy;
+                    
+                    while (x >= 0 && x < 8 && y >= 0 && y < 8) {
+                        if (board[x][y] === opponent) {
+                            piecesToFlip.push([x, y]);
+                        } else if (board[x][y] === player && piecesToFlip.length > 0) {
+                            for (const [flipX, flipY] of piecesToFlip) {
+                                newBoard[flipX][flipY] = player;
+                            }
+                            break;
+                        } else {
+                            break;
+                        }
+                        x += dx;
+                        y += dy;
+                    }
+                }
+                return newBoard;
+            }
+
+            checkValidMoves(board, row, col, player) {
+                const flips = [];
+                if (board[row][col] !== null) return flips;
+                
+                const opponent = player === 'black' ? 'white' : 'black';
+                
+                for (const [dx, dy] of this.directions) {
+                    const dirFlips = [];
+                    let x = row + dx;
+                    let y = col + dy;
+                    
+                    while (x >= 0 && x < 8 && y >= 0 && y < 8) {
+                        if (board[x][y] === opponent) {
+                            dirFlips.push([x, y]);
+                        } else if (board[x][y] === player && dirFlips.length > 0) {
+                            flips.push(...dirFlips);
+                            break;
+                        } else {
+                            break;
+                        }
+                        x += dx;
+                        y += dy;
+                    }
+                }
+                return flips;
+            }
+        }
+
+        const OthelloGame = () => {
+            const initializeBoard = () => {
+                const board = Array(8).fill().map(() => Array(8).fill(null));
+                board[3][3] = 'white';
+                board[3][4] = 'black';
+                board[4][3] = 'black';
+                board[4][4] = 'white';
+                return board;
+            };
+
+            const [board, setBoard] = React.useState(initializeBoard());
+            const [currentPlayer, setCurrentPlayer] = React.useState('black');
+            const [possibleMoves, setPossibleMoves] = React.useState([]);
+            const [gameOver, setGameOver] = React.useState(false);
+            const [scores, setScores] = React.useState({ black: 2, white: 2 });
+            const [isThinking, setIsThinking] = React.useState(false);
+            const [gameMode, setGameMode] = React.useState(null);
+            const aiRef = React.useRef(new OthelloAI());
+
+            const [aiProgress, setAIProgress] = React.useState({
+                depth: 0,
+                totalMoves: 0,
+                currentMove: 0,
+                bestMoveFound: null,
+                currentScore: 0
+            });
+
+            const checkGameState = (currentBoard, player) => {
+                const ai = aiRef.current;
+                const currentMoves = ai.findPossibleMoves(currentBoard, player);
+                if (currentMoves.length > 0) {
+                    return {
+                        isGameOver: false,
+                        nextPlayer: player,
+                        availableMoves: currentMoves
+                    };
+                }
+
+                const opponent = player === 'black' ? 'white' : 'black';
+                const opponentMoves = ai.findPossibleMoves(currentBoard, opponent);
+                if (opponentMoves.length > 0) {
+                    return {
+                        isGameOver: false,
+                        nextPlayer: opponent,
+                        availableMoves: opponentMoves
+                    };
+                }
+
+                return {
+                    isGameOver: true,
+                    nextPlayer: player,
+                    availableMoves: []
+                };
+            };
+
+            const calculateScores = (currentBoard) => {
+                let blackCount = 0;
+                let whiteCount = 0;
+                for (let i = 0; i < 8; i++) {
+                    for (let j = 0; j < 8; j++) {
+                        if (currentBoard[i][j] === 'black') blackCount++;
+                        if (currentBoard[i][j] === 'white') whiteCount++;
+                    }
+                }
+                return { black: blackCount, white: whiteCount };
+            };
+
+            const handleAITurn = async () => {
+                if (gameOver || !isAITurn()) return;
+                setIsThinking(true);
+
+                const progressInterval = setInterval(() => {
+                    setAIProgress({...aiRef.current.currentProgress});
+                }, 100);
+
+                try {
+                    const move = aiRef.current.getBestMove(board, currentPlayer);
+                    if (move) {
+                        const [row, col] = move;
+                        handleMove(row, col);
+                    }
+                } catch (error) {
+                    console.error('AI error:', error);
+                } finally {
+                    clearInterval(progressInterval);
+                    setIsThinking(false);
+                }
+            };
+
+            const isAITurn = () => {
+                return (gameMode === 'ai-white' && currentPlayer === 'white') ||
+                       (gameMode === 'ai-black' && currentPlayer === 'black');
+            };
+
+            const handleGameModeSelect = (mode) => {
+                setGameMode(mode);
+                setBoard(initializeBoard());
+                setCurrentPlayer('black');
+                setGameOver(false);
+                setScores({ black: 2, white: 2 });
+                setAIProgress({
+                    depth: 0,
+                    totalMoves: 0,
+                    currentMove: 0,
+                    bestMoveFound: null,
+                    currentScore: 0
+                });
+            };
+
+            const handleMove = (row, col) => {
+                if (gameOver || isThinking) return;
+                if (!possibleMoves.some(([r, c]) => r === row && c === col)) return;
+
+                const newBoard = aiRef.current.makeMove(board, row, col, currentPlayer);
+                const newScores = calculateScores(newBoard);
+                const nextPlayer = currentPlayer === 'black' ? 'white' : 'black';
+                
+                const gameState = checkGameState(newBoard, nextPlayer);
+
+                setBoard(newBoard);
+                setScores(newScores);
+                setCurrentPlayer(gameState.nextPlayer);
+                setPossibleMoves(gameState.availableMoves);
+                
+                if (gameState.isGameOver) {
+                    setGameOver(true);
+                }
+            };
+
+            React.useEffect(() => {
+                const gameState = checkGameState(board, currentPlayer);
+                setPossibleMoves(gameState.availableMoves);
+                if (gameState.isGameOver) {
+                    setGameOver(true);
+                } else if (gameState.nextPlayer !== currentPlayer) {
+                    setCurrentPlayer(gameState.nextPlayer);
+                }
+            }, []);
+
+            React.useEffect(() => {
+                if (gameMode && isAITurn() && !gameOver && !isThinking) {
+                    handleAITurn();
+                }
+            }, [currentPlayer, gameMode, gameOver]);
+
+            if (!gameMode) {
+                return (
+                    <div className="flex flex-col items-center p-4 bg-green-100 rounded-lg space-y-4">
+                        <h1 className="text-2xl font-bold mb-4">オセロゲーム（AI対戦）</h1>
+                        <button 
+                            onClick={() => handleGameModeSelect('ai-white')}
+                            className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+                        >
+                            黒（先手）でプレイ
+                        </button>
+                        <button 
+                            onClick={() => handleGameModeSelect('ai-black')}
+                            className="px-4 py-2 bg-white text-black rounded hover:bg-gray-200 border border-gray-300"
+                        >
+                            白（後手）でプレイ
+                        </button>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex flex-col items-center p-4 bg-green-100 rounded-lg space-y-4">
+                    <h1 className="text-2xl font-bold">オセロゲーム（AI対戦）</h1>
+                    <div className="grid grid-cols-8 gap-1">
+                        {board.map((row, rowIndex) => (
+                            row.map((cell, colIndex) => {
+                                const isPossibleMove = possibleMoves.some(([r, c]) => r === rowIndex && c === colIndex);
+                                const cellColor = cell === 'black' ? 'bg-black' : cell === 'white' ? 'bg-white' : 'bg-green-500';
+
+                                return (
+                                    <div
+                                        key={`${rowIndex}-${colIndex}`}
+                                        className={`w-12 h-12 border border-gray-500 flex items-center justify-center ${cellColor} ${
+                                            isPossibleMove ? 'hover:ring-2 ring-yellow-500 cursor-pointer' : ''
+                                        }`}
+                                        onClick={() => handleMove(rowIndex, colIndex)}
+                                    >
+                                        {isPossibleMove && !cell && (
+                                            <div className="w-6 h-6 bg-yellow-300 rounded-full opacity-50"></div>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        ))}
+                    </div>
+                    <div className="flex justify-between w-full mt-4">
+                        <div className="text-lg font-medium">
+                            黒: {scores.black} - 白: {scores.white}
+                        </div>
+                        <div>
+                            {gameOver ? (
+                                <span className="text-xl font-bold text-red-500">
+                                    {scores.black > scores.white ? '黒の勝ち！' : scores.white > scores.black ? '白の勝ち！' : '引き分け！'}
+                                </span>
+                            ) : (
+                                <span>現在の手番: {currentPlayer === 'black' ? '黒' : '白'}</span>
+                            )}
+                        </div>
+                    </div>
+                    {isThinking && (
+                        <div className="mt-4">
+                            AIが思考中... 深さ: {aiProgress.depth}, 手: {aiProgress.currentMove}/{aiProgress.totalMoves}, 評価値: {aiProgress.currentScore}
+                        </div>
+                    )}
+                    {gameOver && (
+                        <button
+                            onClick={() => handleGameModeSelect(null)}
+                            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500"
+                        >
+                            再戦する
+                        </button>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<OthelloGame />, document.getElementById('root'));
+    </script>
+</body>
+</html>
