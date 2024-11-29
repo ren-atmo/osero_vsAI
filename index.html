@@ -268,6 +268,10 @@
                 currentScore: 0
             });
 
+            const handleVersion2Click = () => {
+                window.location.href = 'https://ren-atmo.github.io/osero_vsAI/v2.html';
+            };
+
             const checkGameState = (currentBoard, player) => {
                 const ai = aiRef.current;
                 const currentMoves = ai.findPossibleMoves(currentBoard, player);
@@ -408,13 +412,27 @@
                         >
                             白（後手）でプレイ
                         </button>
+                        <button 
+                            onClick={handleVersion2Click}
+                            className="mt-4 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-500"
+                        >
+                            Version 2へ移動
+                        </button>
                     </div>
                 );
             }
 
             return (
                 <div className="flex flex-col items-center p-4 bg-green-100 rounded-lg space-y-4">
-                    <h1 className="text-2xl font-bold">オセロゲーム（AI対戦）</h1>
+                    <div className="w-full flex justify-between items-center mb-4">
+                        <h1 className="text-2xl font-bold">オセロゲーム（AI対戦）</h1>
+                        <button 
+                            onClick={handleVersion2Click}
+                            className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-500"
+                        >
+                            Version 2へ移動
+                        </button>
+                    </div>
                     <div className="grid grid-cols-8 gap-1">
                         {board.map((row, rowIndex) => (
                             row.map((cell, colIndex) => {
@@ -457,12 +475,14 @@
                         </div>
                     )}
                     {gameOver && (
-                        <button
-                            onClick={() => handleGameModeSelect(null)}
-                            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500"
-                        >
-                            再戦する
-                        </button>
+                        <div className="flex space-x-4">
+                            <button
+                                onClick={() => handleGameModeSelect(null)}
+                                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500"
+                            >
+                                再戦する
+                            </button>
+                        </div>
                     )}
                 </div>
             );
