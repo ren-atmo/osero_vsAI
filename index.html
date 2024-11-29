@@ -275,7 +275,8 @@
                     return {
                         isGameOver: false,
                         nextPlayer: player,
-                        availableMoves: currentMoves
+                        availableMoves: currentMoves,
+                        isPass: false,
                     };
                 }
 
@@ -285,14 +286,16 @@
                     return {
                         isGameOver: false,
                         nextPlayer: opponent,
-                        availableMoves: opponentMoves
+                        availableMoves: opponentMoves,
+                        isPass: true,
                     };
                 }
 
                 return {
                     isGameOver: true,
                     nextPlayer: player,
-                    availableMoves: []
+                    availableMoves: [],
+                    isPass: false,
                 };
             };
 
@@ -357,28 +360,31 @@
                 const newBoard = aiRef.current.makeMove(board, row, col, currentPlayer);
                 const newScores = calculateScores(newBoard);
                 const nextPlayer = currentPlayer === 'black' ? 'white' : 'black';
-                
+
                 const gameState = checkGameState(newBoard, nextPlayer);
 
                 setBoard(newBoard);
                 setScores(newScores);
-                setCurrentPlayer(gameState.nextPlayer);
                 setPossibleMoves(gameState.availableMoves);
-                
+                setCurrentPlayer(gameState.nextPlayer);
+
                 if (gameState.isGameOver) {
                     setGameOver(true);
+                } else if (gameState.isPass) {
+                    alert(`${currentPlayer === 'black' ? '黒' : '白'}はパスしました`);
                 }
             };
 
             React.useEffect(() => {
                 const gameState = checkGameState(board, currentPlayer);
                 setPossibleMoves(gameState.availableMoves);
+
                 if (gameState.isGameOver) {
                     setGameOver(true);
-                } else if (gameState.nextPlayer !== currentPlayer) {
+                } else if (gameState.isPass) {
                     setCurrentPlayer(gameState.nextPlayer);
                 }
-            }, []);
+            }, [board, currentPlayer]);
 
             React.useEffect(() => {
                 if (gameMode && isAITurn() && !gameOver && !isThinking) {
