@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>オセロゲーム（AI対戦）</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        class OthelloAI {
+        constructor() {
+            this.currentProgress = {
+                depth: 0,
+                totalMoves: 0,
+                currentMove: 0,
+                bestMoveFound: null,
+                currentScore: 0
+            };
+
+            this.weights = [
+                [120, -20, 15,  8,  8, 15, -20, 120],
+                [-20, -60,  1,  1,  1,  1, -60, -20],
+                [ 15,   1,  7,  2,  2,  7,   1,  15],
+                [  8,   1,  2,  1,  1,  2,   1,   8],
+                [  8,   1,  2,  1,  1,  2,   1,   8],
+                [ 15,   1,  7,  2,  2,  7,   1,  15],
+                [-20, -60,  1,  1,  1,  1, -60, -20],
+                [120, -20, 15,  8,  8, 15, -20, 120]
+            ];
+
+            this.directions = [
+                [-1, -1], [-1, 0], [-1, 1],
+                [0, -1],           [0, 1],
+                [1, -1],  [1, 0],  [1, 1]
+            ];
+        }
+
+        async getBestMove(board, player) {
+            return new Promise((resolve) => {
+                // 1秒の遅延を追加
+                setTimeout(() => {
+                    const moves = this.findPossibleMoves(board, player);
+                    if (moves.length === 0) {
+                        resolve(null);
+                        return;
+                    }
+                    
+                    let bestMove = moves[0];
+                    let bestScore = -Infinity;
+                    this.currentProgress.totalMoves = moves.length;
+
+                    for (let i = 0; i < moves.length; i++) {
+                        this.currentProgress.currentMove = i + 1;
+                        const move = moves[i];
+                        const newBoard = this.makeMove(board, move[0], move[1], player);
+                        const score = this.minimax(newBoard, 4, false, player);
+                        
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMove = move;
+                            this.currentProgress.bestMoveFound = move;
+                            this.currentProgress.currentScore = score;
+                        }
+
+                        this.currentProgress.depth = 3;
+                    }
+
+                    resolve(bestMove);
+                }, 1000); // タイマーを1000ミリ秒（1秒）に設定
+            });
+        }
+
+        minimax(board, depth, isMaximizing, originalPlayer) {
+            if (depth === 0) {
+                return this.evaluateBoard(board, originalPlayer);
+            }
+
+            const currentPlayer = isMaximizing ? originalPlayer : 
+                (originalPlayer === 'black' ? 'white' : 'black');
+            const moves = this.findPossibleMoves(board, currentPlayer);
+
+            if (moves.length === 0) {
+                const opponentMoves = this.findPossibleMoves(board, 
+                    currentPlayer === 'black' ? 'white' : 'black');
+                if (opponentMoves.length === 0) {
+                    return this.evaluateBoard(board, originalPlayer);
+                }
+                return this.minimax(board, depth - 1, !isMaximizing, originalPlayer);
+            }
+
+            let bestScore = isMaximizing ? -Infinity : Infinity;
+            for (const move of moves) {
+                const newBoard = this.makeMove(board, move[0], move[1], currentPlayer);
+                const score = this.minimax(newBoard, depth - 1, !isMaximizing, originalPlayer);
+                if (isMaximizing) {
+                    bestScore = Math.max(score, bestScore);
+                } else {
+                    bestScore = Math.min(score, bestScore);
+                }
+            }
+
+            return bestScore;
+        }
+
+        evaluateBoard(board, player) {
+        const opponent = player === 'black' ? 'white' : 'black';
+        let score = 0;
+
+        // 位置の評価
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                if (board[i][j] === player) {
+                    score += this.weights[i][j];
+                } else if (board[i][j] === opponent) {
+                    score -= this.weights[i][j];
+                }
+            }
+        }
+
+        // 移動可能手数の評価
+        const playerMoves = this.findPossibleMoves(board, player).length;
+        const opponentMoves = this.findPossibleMoves(board, opponent).length;
+        score += (playerMoves - opponentMoves) * 10;
+
+        // 石の数の評価（終盤に近づくほど重要）
+        const [playerCount, opponentCount] = this.countPieces(board, player);
+        const emptyCount = 64 - playerCount - opponentCount;
+        if (emptyCount < 16) {
+            score += (playerCount - opponentCount) * 50;
+        }
+
+            return score;
+        }
+
+        countPieces(board, player) {
+            const opponent = player === 'black' ? 'white' : 'black';
+            let playerCount = 0;
+            let opponentCount = 0;
+
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    if (board[i][j] === player) playerCount++;
+                    else if (board[i][j] === opponent) opponentCount++;
+                }
+            }
+
+            return [playerCount, opponentCount];
+        }
+
+        findPossibleMoves(board, player) {
+            const moves = [];
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    if (this.isValidMove(board, i, j, player)) {
+                        moves.push([i, j]);
+                    }
+                }
+            }
+            return moves;
+        }
+
+        isValidMove(board, row, col, player) {
+            if (board[row][col] !== null) return false;
+            
+            const opponent = player === 'black' ? 'white' : 'black';
+            
+            for (const [dx, dy] of this.directions) {
+                let x = row + dx;
+                let y = col + dy;
+                let foundOpponent = false;
+                
+                while (x >= 0 && x < 8 && y >= 0 && y < 8) {
+                    if (board[x][y] === opponent) {
+                        foundOpponent = true;
+                    } else if (board[x][y] === player && foundOpponent) {
+                        return true;
+                    } else {
+                        break;
+                    }
+                    x += dx;
+                    y += dy;
+                }
+            }
+            return false;
+        }
+
+        makeMove(board, row, col, player) {
+            const newBoard = board.map(row => [...row]);
+            newBoard[row][col] = player;
+            
+            const opponent = player === 'black' ? 'white' : 'black';
+            
+            for (const [dx, dy] of this.directions) {
+                const piecesToFlip = [];
+                let x = row + dx;
+                let y = col + dy;
+                
+                while (x >= 0 && x < 8 && y >= 0 && y < 8) {
+                    if (board[x][y] === opponent) {
+                        piecesToFlip.push([x, y]);
+                    } else if (board[x][y] === player && piecesToFlip.length > 0) {
+                        for (const [flipX, flipY] of piecesToFlip) {
+                            newBoard[flipX][flipY] = player;
+                        }
+                        break;
+                    } else {
+                        break;
+                    }
+                    x += dx;
+                    y += dy;
+                }
+            }
+            return newBoard;
+        }
+    }
+
+    const OthelloGame = () => {
+    const [board, setBoard] = React.useState(() => {
+        const initialBoard = Array(8).fill().map(() => Array(8).fill(null));
+        initialBoard[3][3] = 'white';
+        initialBoard[3][4] = 'black';
+        initialBoard[4][3] = 'black';
+        initialBoard[4][4] = 'white';
+        return initialBoard;
+    });
+    const [currentPlayer, setCurrentPlayer] = React.useState('black');
+    const [possibleMoves, setPossibleMoves] = React.useState([]);
+    const [gameOver, setGameOver] = React.useState(false);
+    const [scores, setScores] = React.useState({ black: 2, white: 2 });
+    const [isThinking, setIsThinking] = React.useState(false);
+    const [gameMode, setGameMode] = React.useState(null);
+    const [error, setError] = React.useState(null);
+    
+    const aiRef = React.useRef(new OthelloAI());
+    const progressIntervalRef = React.useRef(null);
+    
+    const [aiProgress, setAIProgress] = React.useState({
+        depth: 0,
+        totalMoves: 0,
+        currentMove: 0,
+        bestMoveFound: null,
+        currentScore: 0
+    });
+
+    const checkGameState = React.useCallback((currentBoard, player) => {
+        const ai = aiRef.current;
+        const currentMoves = ai.findPossibleMoves(currentBoard, player);
+        
+        if (currentMoves.length > 0) {
+            return {
+                isGameOver: false,
+                nextPlayer: player,
+                availableMoves: currentMoves,
+                isPass: false,
+            };
+        }
+
+        const opponent = player === 'black' ? 'white' : 'black';
+        const opponentMoves = ai.findPossibleMoves(currentBoard, opponent);
+        
+        if (opponentMoves.length > 0) {
+            return {
+                isGameOver: false,
+                nextPlayer: opponent,
+                availableMoves: opponentMoves,
+                isPass: true,
+            };
+        }
+
+        return {
+            isGameOver: true,
+            nextPlayer: player,
+            availableMoves: [],
+            isPass: false,
+        };
+    }, []);
+
+    const calculateScores = React.useCallback((currentBoard) => {
+        let blackCount = 0;
+        let whiteCount = 0;
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                if (currentBoard[i][j] === 'black') blackCount++;
+                if (currentBoard[i][j] === 'white') whiteCount++;
+            }
+        }
+        return { black: blackCount, white: whiteCount };
+    }, []);
+
+    const isAITurn = React.useCallback(() => {
+        return (gameMode === 'ai-white' && currentPlayer === 'white') ||
+               (gameMode === 'ai-black' && currentPlayer === 'black');
+    }, [gameMode, currentPlayer]);
+
+    const handleMove = React.useCallback((row, col) => {
+        if (gameOver || isThinking) return;
+        if (!possibleMoves.some(([r, c]) => r === row && c === col)) return;
+
+        const newBoard = aiRef.current.makeMove(board, row, col, currentPlayer);
+        const newScores = calculateScores(newBoard);
+        const nextPlayer = currentPlayer === 'black' ? 'white' : 'black';
+        const gameState = checkGameState(newBoard, nextPlayer);
+
+        setBoard(newBoard);
+        setScores(newScores);
+
+        if (gameState.isGameOver) {
+            setPossibleMoves([]);
+            setGameOver(true);
+        } else {
+            if (gameState.isPass) {
+                setTimeout(() => {
+                    alert(`${gameState.nextPlayer === 'black' ? '白' : '黒'}はパスしました`);
+                }, 100);
+            }
+            setPossibleMoves(gameState.availableMoves);
+            setCurrentPlayer(gameState.nextPlayer);
+        }
+    }, [gameOver, isThinking, possibleMoves, board, currentPlayer, calculateScores, checkGameState]);
+
+    const handleAITurn = React.useCallback(async () => {
+        if (gameOver || !isAITurn() || isThinking) return;
+        
+        setIsThinking(true);
+        setError(null);
+
+        if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+        }
+
+        progressIntervalRef.current = setInterval(() => {
+            setAIProgress({...aiRef.current.currentProgress});
+        }, 100);
+
+        try {
+            const move = await aiRef.current.getBestMove(board, currentPlayer);
+            if (move) {
+                const [row, col] = move;
+                handleMove(row, col);
+            }
+        } catch (error) {
+            console.error('AI error:', error);
+            setError(`AIの処理中にエラーが発生しました: ${error.message}`);
+        } finally {
+            if (progressIntervalRef.current) {
+                clearInterval(progressIntervalRef.current);
+                progressIntervalRef.current = null;
+            }
+            setIsThinking(false);
+        }
+    }, [gameOver, isAITurn, isThinking, board, currentPlayer, handleMove]);
+
+    const handleGameModeSelect = React.useCallback((mode) => {
+        setGameMode(mode);
+        setBoard(() => {
+            const initialBoard = Array(8).fill().map(() => Array(8).fill(null));
+            initialBoard[3][3] = 'white';
+            initialBoard[3][4] = 'black';
+            initialBoard[4][3] = 'black';
+            initialBoard[4][4] = 'white';
+            return initialBoard;
+        });
+        setCurrentPlayer('black');
+        setGameOver(false);
+        setScores({ black: 2, white: 2 });
+        setError(null);
+        setAIProgress({
+            depth: 0,
+            totalMoves: 0,
+            currentMove: 0,
+            bestMoveFound: null,
+            currentScore: 0
+        });
+    }, []);
+
+    React.useEffect(() => {
+        const gameState = checkGameState(board, currentPlayer);
+        setPossibleMoves(gameState.availableMoves);
+
+        if (gameState.isGameOver) {
+            setGameOver(true);
+        } else if (gameState.isPass) {
+            setTimeout(() => {
+                alert(`${currentPlayer === 'black' ? '黒' : '白'}はパスしました`);
+                setCurrentPlayer(gameState.nextPlayer);
+            }, 100);
+        }
+    }, [board, currentPlayer, checkGameState]);
+    
+    React.useEffect(() => {
+        if (gameMode && isAITurn() && !gameOver && !isThinking) {
+            handleAITurn();
+        }
+    }, [gameMode, isAITurn, gameOver, isThinking, handleAITurn]);
+
+    // AIの進捗を表示するコンポーネント
+    const AIProgressBar = React.useCallback(({ current, total, isThinking }) => {
+        const progress = total > 0 ? (current / total) * 100 : 0;
+        
+        if (!isThinking) return null;
+        
+        return (
+            <div className="w-full max-w-md mx-auto mt-2">
+                <div className="w-full bg-gray-200 rounded-full h-2.5 mb-1">
+                    <div 
+                        className="bg-green-600 h-2.5 rounded-full transition-all duration-300 ease-in-out"
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+                <div className="flex justify-between text-xs text-gray-600">
+                    <span>思考中...</span>
+                    <span>{`${current}/${total} 手目を検討中`}</span>
+                </div>
+            </div>
+        );
+    }, []);
+
+    // ゲームモード選択画面の表示
+    if (!gameMode) {
+        return (
+            <div className="min-h-screen bg-gradient-to-b from-green-50 to-green-100 p-8 flex items-center justify-center">
+                <div className="w-full max-w-md bg-white shadow-xl rounded-xl p-6">
+                    <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">オセロゲーム</h1>
+                    <div className="space-y-4">
+                        <button 
+                            onClick={() => handleGameModeSelect('ai-white')}
+                            className="w-full p-4 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transform transition duration-200 hover:scale-105 flex items-center justify-center space-x-3"
+                        >
+                            <span>黒（先手）でプレイ</span>
+                        </button>
+                        <button 
+                            onClick={() => handleGameModeSelect('ai-black')}
+                            className="w-full p-4 bg-white text-gray-900 rounded-lg border-2 border-gray-300 hover:bg-gray-50 transform transition duration-200 hover:scale-105 flex items-center justify-center space-x-3"
+                        >
+                            <span>白（後手）でプレイ</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ゲームボード画面の表示
+    return (
+        <div className="min-h-screen bg-gradient-to-b from-green-50 to-green-100 p-4 md:p-8">
+            <div className="max-w-4xl mx-auto">
+                <div className="bg-white shadow-xl rounded-xl p-6">
+                    <div className="flex flex-col items-center space-y-6">
+                        <h1 className="text-3xl font-bold text-gray-800">オセロゲーム</h1>
+                        
+                        {error && (
+                            <div className="w-full bg-red-50 border-l-4 border-red-500 p-4 rounded-lg" role="alert">
+                                <div className="flex">
+                                    <div className="ml-3">
+                                        <p className="text-red-700">{error}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="relative">
+                            <div className="grid grid-cols-8 gap-1 bg-green-600 p-3 rounded-lg shadow-lg">
+                                {board.map((row, rowIndex) => (
+                                    row.map((cell, colIndex) => {
+                                        const isPossibleMove = possibleMoves.some(([r, c]) => r === rowIndex && c === colIndex);
+                                        return (
+                                            <div
+                                                key={`${rowIndex}-${colIndex}`}
+                                                className={`w-12 h-12 flex items-center justify-center rounded-lg transition-all duration-300 ${
+                                                    cell ? 'bg-green-700' : 'bg-green-500'
+                                                } ${isPossibleMove ? 'cursor-pointer hover:bg-green-400' : ''}`}
+                                                onClick={() => handleMove(rowIndex, colIndex)}
+                                            >
+                                                {cell && (
+                                                    <div className={`w-10 h-10 rounded-full transform transition-all duration-300 ${
+                                                        cell === 'black' ? 'bg-gray-900' : 'bg-white'
+                                                    } shadow-lg ${
+                                                        cell === 'white' ? 'border border-gray-200' : ''
+                                                    }`} />
+                                                )}
+                                                {isPossibleMove && !cell && (
+                                                    <div className="w-6 h-6 bg-yellow-300 rounded-full opacity-50 animate-pulse" />
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="w-full flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+                            <div className="flex items-center space-x-6">
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 bg-gray-900 rounded-full" />
+                                    <span className="text-lg">{scores.black}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 bg-white border border-gray-300 rounded-full" />
+                                    <span className="text-lg">{scores.white}</span>
+                                </div>
+                            </div>
+                            
+                            {isThinking ? (
+                                <AIProgressBar 
+                                    current={aiProgress.currentMove}
+                                    total={aiProgress.totalMoves}
+                                    isThinking={isThinking}
+                                />
+                            ) : (
+                                <div className="text-lg font-medium text-gray-700">
+                                    {gameOver ? (
+                                        <span className="text-xl font-bold text-green-600">
+                                            {scores.black > scores.white ? '黒の勝ち！' : 
+                                             scores.white > scores.black ? '白の勝ち！' : '引き分け！'}
+                                        </span>
+                                    ) : (
+                                        <div className="flex items-center space-x-2">
+                                            <span>手番:</span>
+                                            <div className={`w-4 h-4 rounded-full ${
+                                                currentPlayer === 'black' ? 'bg-gray-900' : 'bg-white border border-gray-300'
+                                            }`} />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {gameOver && (
+                            <button
+                                onClick={() => handleGameModeSelect(null)}
+                                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-500 transform transition duration-200 hover:scale-105"
+                            >
+                                再戦する
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+ReactDOM.render(<OthelloGame />, document.getElementById('root'));</script>
+</body>
+</html>
